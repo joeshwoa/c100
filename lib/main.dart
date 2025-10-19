@@ -1,8 +1,11 @@
 import 'package:c100/local_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/adapters.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
   await LocalStorage.init();
   runApp(MyApp());
 }
@@ -33,7 +36,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: LocalStorage.getBool('showOnboard') ?? true ? const OnboardingScreen() : HomeScreen(),
+      home: (LocalStorage.getData('showOnboard') as bool?) ?? true ? const OnboardingScreen() : HomeScreen(),
     );
   }
 }
@@ -51,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void initState() {
-    counter = LocalStorage.getInt('counter') ?? 0;
+    counter = (LocalStorage.getData('counter') as int?) ?? 0;
     super.initState();
   }
   @override
@@ -90,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
           FloatingActionButton(
             heroTag: 'save',
             onPressed: () {
-              LocalStorage.saveInt('counter', counter);
+              LocalStorage.saveData('counter', counter);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved')));
             },
             child: const Icon(Icons.save_rounded),
@@ -146,7 +149,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   void _goToHome() {
-    LocalStorage.saveBool('showOnboard', false);
+    LocalStorage.saveData('showOnboard', false);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
@@ -154,7 +157,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _onNext() {
     if (_currentPage == _pages.length - 1) {
-      LocalStorage.saveBool('showOnboard', false);
+      LocalStorage.saveData('showOnboard', false);
       _goToHome();
     } else {
       _pageController.nextPage(
