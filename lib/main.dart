@@ -1,12 +1,11 @@
-import 'package:c100/local_storage.dart';
+import 'dart:convert';
+
+import 'package:c100/post_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
-import 'package:hive_flutter/adapters.dart';
+import 'package:http/http.dart' as http;
+import 'post_model.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  await LocalStorage.init();
   runApp(MyApp());
 }
 
@@ -36,282 +35,131 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: (LocalStorage.getData('showOnboard') as bool?) ?? true ? const OnboardingScreen() : HomeScreen(),
+      home: Home(),
     );
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class Home extends StatefulWidget {
+  const Home({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<Home> createState() => _HomeState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeState extends State<Home> {
+  final List<PostModel> _posts = [];
+  bool loading = true;
+  TextEditingController _controller = TextEditingController();
 
-  int counter = 0;
+  String base = 'https://jsonplaceholder.typicode.com/';
+
+  Future<void> _fetchPosts({int? id}) async {
+
+    setState(() {
+      loading = true;
+      _posts.clear();
+    });
+
+    final res = await http.get(Uri.parse("${base}posts/${id ?? ''}"));
+    final resJson = json.decode(res.body);
+
+    if(id == null) {
+      for (final e in resJson) {
+      _posts.add(PostModel.fromJson(e));
+    }
+    } else {
+      _posts.add(PostModel.fromJson(resJson));
+    }
+
+    setState(() {
+      loading = false;
+    });
+  }
 
   @override
   void initState() {
-    counter = (LocalStorage.getData('counter') as int?) ?? 0;
+    _fetchPosts();
     super.initState();
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: const Text('Posts'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 12),
-            Text(
-              'Welcome! 🎉',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 12),
-            Text(
-              'This is your home screen. You came here from the onboarding flow. '
-              'Because we are not using any storage, the onboarding will appear '
-              'again every time you restart the app.',
-              style: TextStyle(fontSize: 16, height: 1.4),
-            ),
-            SizedBox(height: 24),
-            Center(child: Text(counter.toString(), style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold),))
-          ],
-        ),
-      ),
-      floatingActionButton: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 12,
-        children: [
-          FloatingActionButton(
-            heroTag: 'save',
-            onPressed: () {
-              LocalStorage.saveData('counter', counter);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved')));
-            },
-            child: const Icon(Icons.save_rounded),
-          ),
-          FloatingActionButton(
-            heroTag: 'plus',
-            onPressed: () {
-              setState(() {
-                counter++;
-              });
-            },
-            child: const Icon(Icons.plus_one),
-          ),
+        actions: [
+          IconButton(onPressed: _fetchPosts, icon: const Icon(Icons.refresh))
         ],
       ),
-    );
-  }
-}
-
-class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
-
-  @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
-}
-
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-
-  final List<_OnboardPageData> _pages = const [
-    _OnboardPageData(
-      title: 'Discover',
-      description:
-          'Find amazing features and explore what this app can do for you.',
-      icon: Icons.explore,
-      color: Color(0xFF6C63FF),
-    ),
-    _OnboardPageData(
-      title: 'Organize',
-      description:
-          'Keep everything tidy and accessible with a beautiful interface.',
-      icon: Icons.dashboard_customize,
-      color: Color(0xFF00C2A8),
-    ),
-    _OnboardPageData(
-      title: 'Achieve',
-      description:
-          'Reach your goals faster with powerful tools and insights.',
-      icon: Icons.emoji_events,
-      color: Color(0xFFFF7A59),
-    ),
-  ];
-
-  void _goToHome() {
-    LocalStorage.saveData('showOnboard', false);
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
-  }
-
-  void _onNext() {
-    if (_currentPage == _pages.length - 1) {
-      LocalStorage.saveData('showOnboard', false);
-      _goToHome();
-    } else {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top actions
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+            children: [
+              Row(
                 children: [
-                  TextButton(
-                    onPressed: _goToHome,
-                    child: const Text('Skip'),
+                  Expanded(child: TextFormField(
+                    controller: _controller,
                   ),
-                  Text('${_currentPage + 1}/${_pages.length}'),
+                  ),
+                  IconButton.filled(onPressed: () => _fetchPosts(id: int.tryParse(_controller.text)), icon: const Icon(Icons.search))
                 ],
               ),
-            ),
-            // Pages
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: _pages.length,
-                onPageChanged: (i) => setState(() => _currentPage = i),
-                itemBuilder: (context, index) {
-                  final p = _pages[index];
-                  return _OnboardPage(data: p);
-                },
-              ),
-            ),
-            // Indicators + Next/Get Started
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      for (int i = 0; i < _pages.length; i++)
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          height: 8,
-                          width: _currentPage == i ? 20 : 8,
-                          decoration: BoxDecoration(
-                            color: _currentPage == i
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.grey.shade400,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+              Expanded(child: ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: _posts.length,
+              itemBuilder: (context, index) {
+                final post = _posts[index];
+                return GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => PostScreen(post: post))),
+                  child: Card(
+                  elevation: 4,
+                  margin: const EdgeInsets.only(bottom: 16.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post.title,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                    ],
-                  ),
-                  ElevatedButton(
-                    onPressed: _onNext,
-                    style: ElevatedButton.styleFrom(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                        const SizedBox(height: 8),
+                        Text(
+                          post.body,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              'User ID: ${post.userId}',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: Colors.grey[600]),
+                            ),
+                            const SizedBox(width: 16),
+                            Text(
+                              'Post ID: ${post.id}',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      _currentPage == _pages.length - 1 ? 'Get Started' : 'Next',
-                    ),
                   ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OnboardPageData {
-  final String title;
-  final String description;
-  final IconData icon;
-  final Color color;
-
-  const _OnboardPageData({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.color,
-  });
-}
-
-class _OnboardPage extends StatelessWidget {
-  final _OnboardPageData data;
-
-  const _OnboardPage({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            height: 220,
-            width: 220,
-            decoration: BoxDecoration(
-              color: data.color.withOpacity(0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              data.icon,
-              size: 120,
-              color: data.color,
-            ),
+                ),
+                );
+              },
+            )) 
+            ],
           ),
-          const SizedBox(height: 32),
-          Text(
-            data.title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            data.description,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              height: 1.5,
-              color: Colors.grey.shade700,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
