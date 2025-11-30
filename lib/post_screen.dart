@@ -19,15 +19,21 @@ class _PostScreenState extends State<PostScreen> {
   String base = 'https://jsonplaceholder.typicode.com/';
 
   bool loading = true;
+  bool loadingMore = false;
 
-  Future<void> _fetchComments() async {
+  ScrollController controller = ScrollController();
+
+  int page = 1;
+  int totalPage = 3;
+
+  Future<void> _fetchComments({int p = 1}) async {
+    if (totalPage < p) return;
     setState(() {
-      loading = true;
-      _comments.clear();
+      loadingMore = true;
     });
 
     final res = await http.get(
-      Uri.parse('${base}posts/${widget.post.id}/comments'),
+      Uri.parse('${base}posts/${widget.post.id}/comments?page=$p'),
     );
     final resJson = json.decode(res.body);
 
@@ -36,13 +42,29 @@ class _PostScreenState extends State<PostScreen> {
     }
 
     setState(() {
+      page = p;
+      loadingMore = false;
       loading = false;
     });
+  }
+
+  Future<void> _refreshComments() async {
+    setState(() {
+      _comments.clear();
+      page = 1;
+      loading = true;
+    });
+    await _fetchComments();
   }
 
   @override
   void initState() {
     super.initState();
+    controller.addListener(() {
+      if (controller.position.pixels == controller.position.maxScrollExtent) {
+        _fetchComments(p: page + 1);
+      }
+    });
     _fetchComments();
   }
 
@@ -55,10 +77,11 @@ class _PostScreenState extends State<PostScreen> {
       ),
       body: loading
           ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          : RefreshIndicator(
+              onRefresh: _refreshComments,
+              child: ListView(
+                controller: controller,
+                padding: const EdgeInsets.all(16.0),
                 children: [
                   // Post Content
                   Card(
@@ -176,6 +199,9 @@ class _PostScreenState extends State<PostScreen> {
                       );
                     },
                   ),
+
+                  if(loadingMore)
+                    const Center(child: CircularProgressIndicator())
                 ],
               ),
             ),

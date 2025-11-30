@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:c100/add_post.dart';
 import 'package:c100/post_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -160,6 +161,7 @@ class _HomeState extends State<Home> {
             )) 
             ],
           ),
+      floatingActionButton: FloatingActionButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddPost())), child: const Icon(Icons.add)),
     );
   }
 }
